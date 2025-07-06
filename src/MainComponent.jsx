@@ -1,6 +1,5 @@
 import React from "react";
-import { TABS_KEYS } from "./TABS";
-import { TABS } from "./TABS";
+import { TABS_KEYS, TABS } from "./TABS";
 import { Event as EventBase } from "./Event";
 
 const Event = React.memo(EventBase);
@@ -72,32 +71,32 @@ function FavoriteScripts() {
       </h2>
       <ul className="event-grid">
         <Event
-          slim={true}
+          slim
           icon="light2"
           iconLabel="Освещение"
           title="Выключить весь свет в доме и во дворе"
         />
         <Event
-          slim={true}
+          slim
           icon="schedule"
           iconLabel="Расписание"
           title="Я ухожу"
         />
         <Event
-          slim={true}
+          slim
           icon="light2"
           iconLabel="Освещение"
           title="Включить свет в коридоре"
         />
         <Event
-          slim={true}
+          slim
           icon="temp2"
           iconLabel="Температура"
           title="Набрать горячую ванну"
           subtitle="Начнётся в 18:00"
         />
         <Event
-          slim={true}
+          slim
           icon="temp2"
           iconLabel="Температура"
           title="Сделать пол тёплым во всей квартире"
@@ -108,18 +107,16 @@ function FavoriteScripts() {
 }
 
 function FavoriteDevices() {
-  const panelRef = React.useRef();
+  const panelRef = React.useRef(null);
+  const resizeTimeoutRef = React.useRef(null);
+
   const [activeTab, setActiveTab] = React.useState(
     new URLSearchParams(location.search).get("tab") || "all"
   );
   const [hasRightScroll, setHasRightScroll] = React.useState(false);
 
-  const onSelectInput = React.useCallback((event) => {
-    setActiveTab(event.target.value);
-  }, []);
-
   const checkOverflow = React.useCallback(() => {
-    const panel = panelRef.current.querySelector(
+    const panel = panelRef.current?.querySelector(
       ".section__panel:not(.section__panel_hidden)"
     );
     if (!panel) return;
@@ -131,21 +128,18 @@ function FavoriteDevices() {
     checkOverflow();
   }, [activeTab, checkOverflow]);
 
-  const debouncedCheckOverflow = React.useCallback(() => {
-    let timeoutId;
-    return () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(checkOverflow, 100);
-    };
-  }, [checkOverflow])();
-
   React.useEffect(() => {
-    window.addEventListener("resize", debouncedCheckOverflow);
-    return () => window.removeEventListener("resize", debouncedCheckOverflow);
-  }, [debouncedCheckOverflow]);
+    const handleResize = () => {
+      clearTimeout(resizeTimeoutRef.current);
+      resizeTimeoutRef.current = setTimeout(checkOverflow, 100);
+    };
 
-  const onArrowCLick = React.useCallback(() => {
-    const scroller = panelRef.current.querySelector(
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [checkOverflow]);
+
+  const onArrowClick = React.useCallback(() => {
+    const scroller = panelRef.current?.querySelector(
       ".section__panel:not(.section__panel_hidden)"
     );
     if (scroller) {
@@ -154,6 +148,21 @@ function FavoriteDevices() {
         behavior: "smooth",
       });
     }
+  }, []);
+
+  const onSelectInput = React.useCallback((event) => {
+    setActiveTab(event.target.value);
+  }, []);
+
+  // Memoized tab content (DOM preserved)
+  const tabPanelContent = React.useMemo(() => {
+    const content = {};
+    for (const key of TABS_KEYS) {
+      content[key] = TABS[key].items.map((item, index) => (
+        <Event key={index} {...item} />
+      ));
+    }
+    return content;
   }, []);
 
   return (
@@ -176,7 +185,7 @@ function FavoriteDevices() {
             <li
               key={key}
               role="tab"
-              aria-selected={key === activeTab ? "true" : "false"}
+              aria-selected={key === activeTab}
               tabIndex={key === activeTab ? "0" : undefined}
               className={
                 "section__tab" +
@@ -191,6 +200,7 @@ function FavoriteDevices() {
           ))}
         </ul>
       </div>
+
       <div className="section__panel-wrapper" ref={panelRef}>
         {TABS_KEYS.map((key) => (
           <div
@@ -200,24 +210,21 @@ function FavoriteDevices() {
               "section__panel" +
               (key === activeTab ? "" : " section__panel_hidden")
             }
-            aria-hidden={key === activeTab}
+            aria-hidden={key !== activeTab}
             id={`panel_${key}`}
             aria-labelledby={`tab_${key}`}
           >
-            <ul className="section__panel-list">
-              {TABS[key].items.map((item, index) => (
-                <Event key={index} {...item} />
-              ))}
-            </ul>
+            <ul className="section__panel-list">{tabPanelContent[key]}</ul>
           </div>
         ))}
         {hasRightScroll && (
-          <div className="section__arrow" onClick={onArrowCLick}></div>
+          <div className="section__arrow" onClick={onArrowClick}></div>
         )}
       </div>
     </section>
   );
 }
+
 
 export function MainComponent() {
   return (
